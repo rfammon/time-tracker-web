@@ -74,10 +74,6 @@ export const useAgendaStore = create<AgendaState>()(
                     const activity = activities[activityIndex];
                     if (activity.status !== 'completed') return state;
 
-                    // Calculate the variation to be removed
-                    const [ph, pm, ps] = activity.plannedDuration.split(':').map(Number);
-                    const plannedSeconds = (ph * 3600) + (pm * 60) + ps;
-
                     // Parse variation from string like "+00:05:00" or "-00:02:00"
                     let variationSeconds = 0;
                     if (activity.variation) {

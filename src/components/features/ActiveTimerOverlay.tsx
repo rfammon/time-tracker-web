@@ -2,11 +2,11 @@ import { useTimerStore } from '@/stores/useTimerStore';
 import { useAgendaStore } from '@/stores/useAgendaStore';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Pause, Play, Square } from 'lucide-react';
+import { Pause, Play, Square, RotateCcw } from 'lucide-react';
 import { formatSeconds } from '@/lib/time-utils';
 
 export function ActiveTimerOverlay() {
-    const { isRunning, accumulatedTime, pause, resume, stop, activeActivityId, activeModuleName, lastResumeTime } = useTimerStore();
+    const { isRunning, accumulatedTime, pause, resume, stop, reset, activeActivityId, activeModuleName, lastResumeTime } = useTimerStore();
     const { agenda, completeActivity } = useAgendaStore();
 
     const [elapsed, setElapsed] = useState(0);
@@ -62,6 +62,9 @@ export function ActiveTimerOverlay() {
                                 <Play className="h-5 w-5 md:h-6 md:w-6" />
                             </Button>
                         )}
+                        <Button size="icon" variant="ghost" className="h-9 w-9 md:h-11 md:w-11 text-muted-foreground hover:text-amber-600" onClick={reset} title="Reiniciar Contador">
+                            <RotateCcw className="h-5 w-5 md:h-6 md:w-6" />
+                        </Button>
                         <Button size="icon" variant="destructive" className="h-9 w-9 md:h-11 md:w-11" onClick={handleFinish}>
                             <Square className="h-5 w-5 md:h-6 md:w-6 fill-current" />
                         </Button>
