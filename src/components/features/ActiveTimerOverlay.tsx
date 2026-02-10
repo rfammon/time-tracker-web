@@ -4,10 +4,14 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Pause, Play, Square, RotateCcw } from 'lucide-react';
 import { formatSeconds } from '@/lib/time-utils';
+import { useWakeLock } from '@/hooks/useWakeLock';
+
 
 export function ActiveTimerOverlay() {
     const { isRunning, accumulatedTime, pause, resume, stop, reset, activeActivityId, activeModuleName, lastResumeTime } = useTimerStore();
     const { agenda, completeActivity } = useAgendaStore();
+
+    useWakeLock(isRunning);
 
     const [elapsed, setElapsed] = useState(0);
 
