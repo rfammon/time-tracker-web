@@ -2,7 +2,7 @@ import { useTimerStore } from '@/stores/useTimerStore';
 import { useAgendaStore } from '@/stores/useAgendaStore';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Pause, Play, Square, RotateCcw } from 'lucide-react';
+import { Pause, Play, Square, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatSeconds } from '@/lib/time-utils';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { NextActivityConfirmModal } from './NextActivityConfirmModal';
@@ -17,38 +17,39 @@ export function ActiveTimerOverlay() {
     const [elapsed, setElapsed] = useState(0);
     const [showConfirm, setShowConfirm] = useState(false);
     const [lastCompletedActivity, setLastCompletedActivity] = useState<{ title: string, id: string, module: string } | null>(null);
+    const [predictedNextActivity, setPredictedNextActivity] = useState<any>(null);
 
-    // Find next activity
-    const getNextActivity = () => {
-        if (!activeActivityId || !activeModuleName) return null;
-        const activities = agenda.modules[activeModuleName] || [];
-        const currentIndex = activities.findIndex(a => a.id === activeActivityId);
-
-        if (currentIndex !== -1 && currentIndex < activities.length - 1) {
-            return {
-                ...activities[currentIndex + 1],
-                module: activeModuleName
-            };
-        }
-
-        // Check next module
+    // Helpers to find adjacent activities
+    const getAdjacentActivity = (id: string, module: string, direction: 'prev' | 'next') => {
+        const activities = agenda.modules[module] || [];
+        const currentIndex = activities.findIndex(a => a.id === id);
         const moduleNames = Object.keys(agenda.modules).sort();
-        const currentModIdx = moduleNames.indexOf(activeModuleName);
-        if (currentModIdx !== -1 && currentModIdx < moduleNames.length - 1) {
-            const nextModuleName = moduleNames[currentModIdx + 1];
-            const nextModuleActivities = agenda.modules[nextModuleName] || [];
-            if (nextModuleActivities.length > 0) {
-                return {
-                    ...nextModuleActivities[0],
-                    module: nextModuleName
-                };
+        const currentModIdx = moduleNames.indexOf(module);
+
+        if (direction === 'next') {
+            if (currentIndex !== -1 && currentIndex < activities.length - 1) {
+                return { ...activities[currentIndex + 1], module };
+            }
+            if (currentModIdx !== -1 && currentModIdx < moduleNames.length - 1) {
+                const nextModName = moduleNames[currentModIdx + 1];
+                const nextActArr = agenda.modules[nextModName] || [];
+                if (nextActArr.length > 0) return { ...nextActArr[0], module: nextModName };
+            }
+        } else {
+            if (currentIndex > 0) {
+                return { ...activities[currentIndex - 1], module };
+            }
+            if (currentModIdx > 0) {
+                const prevModName = moduleNames[currentModIdx - 1];
+                const prevActArr = agenda.modules[prevModName] || [];
+                if (prevActArr.length > 0) return { ...prevActArr[prevActArr.length - 1], module: prevModName };
             }
         }
-
         return null;
     };
 
-    const nextActivity = getNextActivity();
+    const nextActivity = activeActivityId ? getAdjacentActivity(activeActivityId, activeModuleName!, 'next') : null;
+    const prevActivity = activeActivityId ? getAdjacentActivity(activeActivityId, activeModuleName!, 'prev') : null;
 
     useEffect(() => {
         let interval: any;
@@ -77,6 +78,9 @@ export function ActiveTimerOverlay() {
         const activity = agenda.modules[activeModuleName!]?.find(a => a.id === activeActivityId);
         if (!activity) return;
 
+        // CRITICAL: Identify next activity BEFORE calling stop()
+        const next = nextActivity;
+
         const finalSeconds = stop();
         completeActivity(activeModuleName!, activeActivityId!, finalSeconds);
 
@@ -85,13 +89,24 @@ export function ActiveTimerOverlay() {
             id: activeActivityId!,
             module: activeModuleName!
         });
+        setPredictedNextActivity(next);
         setShowConfirm(true);
     };
 
+    const handleNavigate = (direction: 'prev' | 'next') => {
+        const target = direction === 'next' ? nextActivity : prevActivity;
+        if (target) {
+            // Stop current if any (don't save time, just skip)
+            stop();
+            start(target.module, target.id);
+            startActivity(target.module, target.id);
+        }
+    };
+
     const handleConfirmNext = () => {
-        if (nextActivity) {
-            start(nextActivity.module, nextActivity.id);
-            startActivity(nextActivity.module, nextActivity.id);
+        if (predictedNextActivity) {
+            start(predictedNextActivity.module, predictedNextActivity.id);
+            startActivity(predictedNextActivity.module, predictedNextActivity.id);
         }
         setShowConfirm(false);
     };
@@ -99,6 +114,7 @@ export function ActiveTimerOverlay() {
     const handleCloseConfirm = () => {
         setShowConfirm(false);
         setLastCompletedActivity(null);
+        setPredictedNextActivity(null);
     };
 
     return (
@@ -110,8 +126,32 @@ export function ActiveTimerOverlay() {
                 </div>
 
                 <div className="flex items-center gap-3 md:gap-6">
-                    <div className="text-2xl md:text-4xl font-mono font-black tracking-wider tabular-nums text-primary drop-shadow-sm">
-                        {timerString}
+                    <div className="flex items-center gap-1">
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-muted-foreground disabled:opacity-30"
+                            onClick={() => handleNavigate('prev')}
+                            disabled={!prevActivity}
+                            title="Atividade Anterior"
+                        >
+                            <ChevronLeft className="h-5 w-5" />
+                        </Button>
+
+                        <div className="text-2xl md:text-4xl font-mono font-black tracking-wider tabular-nums text-primary drop-shadow-sm px-2">
+                            {timerString}
+                        </div>
+
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-muted-foreground disabled:opacity-30"
+                            onClick={() => handleNavigate('next')}
+                            disabled={!nextActivity}
+                            title="Próxima Atividade"
+                        >
+                            <ChevronRight className="h-5 w-5" />
+                        </Button>
                     </div>
 
                     <div className="flex gap-2">
@@ -139,7 +179,7 @@ export function ActiveTimerOverlay() {
                 onClose={handleCloseConfirm}
                 onConfirm={handleConfirmNext}
                 currentActivityTitle={lastCompletedActivity?.title || ""}
-                nextActivityTitle={nextActivity?.title || null}
+                nextActivityTitle={predictedNextActivity?.title || null}
             />
         </div>
     );
