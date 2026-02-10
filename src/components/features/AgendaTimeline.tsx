@@ -5,12 +5,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogTrigger } from '@/components/ui/dialog';
-import { Play, Pause, Square, CheckCircle2, Settings2, Clock, AlertTriangle } from 'lucide-react';
+import { Play, Pause, Square, CheckCircle2, Settings2, Clock, AlertTriangle, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { EditActivityModal } from './EditActivityModal';
 
 export function AgendaTimeline() {
-    const { agenda, currentModule, startActivity, completeActivity, totalVariation } = useAgendaStore();
+    const { agenda, currentModule, startActivity, completeActivity, restartActivity, totalVariation } = useAgendaStore();
     const activities = agenda.modules[currentModule] || [];
     const { isRunning, start, pause, resume, stop, activeActivityId } = useTimerStore();
     const [editingActivity, setEditingActivity] = useState<any>(null);
@@ -170,6 +170,18 @@ export function AgendaTimeline() {
                                             className="w-full md:w-28 font-bold"
                                         >
                                             <Play className="mr-2 h-4 w-4" /> Iniciar
+                                        </Button>
+                                    )}
+
+                                    {isCompleted && (
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => restartActivity(currentModule, activity.id)}
+                                            className="text-muted-foreground hover:text-amber-600"
+                                            title="Reiniciar Atividade"
+                                        >
+                                            <RotateCcw className="h-4 w-4 mr-1" /> Reiniciar
                                         </Button>
                                     )}
 

@@ -14,6 +14,7 @@ interface AgendaState {
     setAgenda: (agenda: Agenda) => void;
     setModule: (moduleName: string) => void;
     startActivity: (moduleName: string, activityId: string) => void;
+    restartActivity: (moduleName: string, activityId: string) => void;
     completeActivity: (moduleName: string, activityId: string, realDuration: number) => void;
     updateVariation: () => void;
     reset: () => void;
@@ -57,6 +58,76 @@ export const useAgendaStore = create<AgendaState>()(
                     newModules[moduleName] = activities;
 
                     return { agenda: { ...state.agenda, modules: newModules } };
+                });
+            },
+
+            restartActivity: (moduleName, activityId) => {
+                set((state) => {
+                    const newModules = { ...state.agenda.modules };
+                    if (!newModules[moduleName]) return state;
+
+                    const activities = [...newModules[moduleName]];
+                    const activityIndex = activities.findIndex(a => a.id === activityId);
+
+                    if (activityIndex === -1) return state;
+
+                    const activity = activities[activityIndex];
+                    if (activity.status !== 'completed') return state;
+
+                    // Calculate the variation to be removed
+                    const [ph, pm, ps] = activity.plannedDuration.split(':').map(Number);
+                    const plannedSeconds = (ph * 3600) + (pm * 60) + ps;
+
+                    // Parse variation from string like "+00:05:00" or "-00:02:00"
+                    let variationSeconds = 0;
+                    if (activity.variation) {
+                        const sign = activity.variation.startsWith('+') ? 1 : -1;
+                        const [vh, vm, vs] = activity.variation.substring(1).split(':').map(Number);
+                        variationSeconds = sign * ((vh * 3600) + (vm * 60) + vs);
+                    }
+
+                    // Revert status and clear real times
+                    activities[activityIndex] = {
+                        ...activity,
+                        status: 'pending',
+                        realStart: undefined,
+                        realEnd: undefined,
+                        realDuration: undefined,
+                        variation: undefined
+                    };
+
+                    // REVERSE the schedule shift for ALL future activities
+                    const reverseShift = -variationSeconds;
+
+                    // Shift future activities in THIS module
+                    for (let i = activityIndex + 1; i < activities.length; i++) {
+                        activities[i] = {
+                            ...activities[i],
+                            plannedStart: shiftTime(activities[i].plannedStart, reverseShift),
+                            plannedEnd: shiftTime(activities[i].plannedEnd, reverseShift)
+                        };
+                    }
+
+                    newModules[moduleName] = activities;
+
+                    // Shift activities in FUTURE modules
+                    const moduleNames = Object.keys(newModules).sort();
+                    const currentModIdx = moduleNames.indexOf(moduleName);
+                    if (currentModIdx !== -1) {
+                        for (let j = currentModIdx + 1; j < moduleNames.length; j++) {
+                            const nextModName = moduleNames[j];
+                            newModules[nextModName] = newModules[nextModName].map(act => ({
+                                ...act,
+                                plannedStart: shiftTime(act.plannedStart, reverseShift),
+                                plannedEnd: shiftTime(act.plannedEnd, reverseShift)
+                            }));
+                        }
+                    }
+
+                    return {
+                        agenda: { ...state.agenda, modules: newModules },
+                        totalVariation: state.totalVariation - variationSeconds
+                    };
                 });
             },
 
