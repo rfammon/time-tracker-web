@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+.DS_Store
+*.local
+.gemini
+.idea
+.vscode
+.agent
+brain
+*.log
