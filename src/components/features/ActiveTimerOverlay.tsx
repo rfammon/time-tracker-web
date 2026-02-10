@@ -5,15 +5,50 @@ import { Button } from '@/components/ui/button';
 import { Pause, Play, Square, RotateCcw } from 'lucide-react';
 import { formatSeconds } from '@/lib/time-utils';
 import { useWakeLock } from '@/hooks/useWakeLock';
+import { NextActivityConfirmModal } from './NextActivityConfirmModal';
 
 
 export function ActiveTimerOverlay() {
-    const { isRunning, accumulatedTime, pause, resume, stop, reset, activeActivityId, activeModuleName, lastResumeTime } = useTimerStore();
-    const { agenda, completeActivity } = useAgendaStore();
+    const { isRunning, accumulatedTime, pause, resume, stop, reset, start, activeActivityId, activeModuleName, lastResumeTime } = useTimerStore();
+    const { agenda, startActivity, completeActivity } = useAgendaStore();
 
     useWakeLock(isRunning);
 
     const [elapsed, setElapsed] = useState(0);
+    const [showConfirm, setShowConfirm] = useState(false);
+    const [lastCompletedActivity, setLastCompletedActivity] = useState<{ title: string, id: string, module: string } | null>(null);
+
+    // Find next activity
+    const getNextActivity = () => {
+        if (!activeActivityId || !activeModuleName) return null;
+        const activities = agenda.modules[activeModuleName] || [];
+        const currentIndex = activities.findIndex(a => a.id === activeActivityId);
+
+        if (currentIndex !== -1 && currentIndex < activities.length - 1) {
+            return {
+                ...activities[currentIndex + 1],
+                module: activeModuleName
+            };
+        }
+
+        // Check next module
+        const moduleNames = Object.keys(agenda.modules).sort();
+        const currentModIdx = moduleNames.indexOf(activeModuleName);
+        if (currentModIdx !== -1 && currentModIdx < moduleNames.length - 1) {
+            const nextModuleName = moduleNames[currentModIdx + 1];
+            const nextModuleActivities = agenda.modules[nextModuleName] || [];
+            if (nextModuleActivities.length > 0) {
+                return {
+                    ...nextModuleActivities[0],
+                    module: nextModuleName
+                };
+            }
+        }
+
+        return null;
+    };
+
+    const nextActivity = getNextActivity();
 
     useEffect(() => {
         let interval: any;
@@ -39,8 +74,31 @@ export function ActiveTimerOverlay() {
     const timerString = formatSeconds(Math.floor(elapsed / 1000));
 
     const handleFinish = () => {
+        const activity = agenda.modules[activeModuleName!]?.find(a => a.id === activeActivityId);
+        if (!activity) return;
+
         const finalSeconds = stop();
-        completeActivity(activeModuleName, activeActivityId, finalSeconds);
+        completeActivity(activeModuleName!, activeActivityId!, finalSeconds);
+
+        setLastCompletedActivity({
+            title: activity.title,
+            id: activeActivityId!,
+            module: activeModuleName!
+        });
+        setShowConfirm(true);
+    };
+
+    const handleConfirmNext = () => {
+        if (nextActivity) {
+            start(nextActivity.module, nextActivity.id);
+            startActivity(nextActivity.module, nextActivity.id);
+        }
+        setShowConfirm(false);
+    };
+
+    const handleCloseConfirm = () => {
+        setShowConfirm(false);
+        setLastCompletedActivity(null);
     };
 
     return (
@@ -75,6 +133,14 @@ export function ActiveTimerOverlay() {
                     </div>
                 </div>
             </div>
+
+            <NextActivityConfirmModal
+                isOpen={showConfirm}
+                onClose={handleCloseConfirm}
+                onConfirm={handleConfirmNext}
+                currentActivityTitle={lastCompletedActivity?.title || ""}
+                nextActivityTitle={nextActivity?.title || null}
+            />
         </div>
     );
 }
